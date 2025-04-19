@@ -1,0 +1,73 @@
+---
+- name: Check Docker Status
+  service:
+    name: docker
+    state: started
+  register: docker_status
+  ignore_errors: true
+
+- name: Start Docker if not running
+  service:
+    name: docker
+    state: started
+  when: docker_status.status.ActiveState != "active" and docker_status.rc == 0
+
+- name: Verify Docker is running
+  command: docker info
+  register: docker_info
+  ignore_errors: yes
+  changed_when: false
+  failed_when: docker_info.rc != 0
+
+- name: Check if Ollama is running
+  command: ollama version
+  register: ollama_check
+  ignore_errors: true
+  changed_when: false
+
+- name: Start Ollama if not running
+  command: systemctl start ollama
+  when: ollama_check.rc != 0
+  become: true
+  ignore_errors: true
+
+- name: Fail if Ollama is not installed
+  fail:
+    msg: "Ollama is not installed. Please install Ollama before running this role."
+  when: ollama_check.rc != 0
+
+- name: Pull the AI model with Ollama
+  command: ollama pull {{ ai_model_name }}
+  register: ollama_pull_result
+  changed_when: "'Successfully pulled' in ollama_pull_result.stdout"
+  ignore_errors: true
+
+- name: Fail if pull failed
+  fail:
+    msg: "Failed to pull the AI model: {{ ai_model_name }}"
+  when: ollama_pull_result.rc != 0
+
+- name: Run the AI model with Ollama
+  command: ollama run {{ ai_model_name }}
+  async: 600
+  poll: 0
+  register: ollama_run_result
+
+- name: Display Ollama Run Status
+  debug:
+    msg: "Ollama run initiated for model {{ ai_model_name }}. Check its output directly."
+
+- name: Run Open WebUI Docker Container
+  command: >
+    docker run -d --network=host
+    -v open-webui:/app/backend
+    -e OLLAMA_BASE_URL=http://127.0.0.1:11434
+    --name open-webui
+    --restart always
+    ghcr.io/open-webui/open-webui:main
+  register: open_webui_result
+  ignore_errors: true
+
+- name: Display Instructions to Access UI
+  debug:
+    msg: "Open WebUI has been deployed. Open your web browser and navigate to http://localhost:8080 to view the UI."

@@ -1,0 +1,80 @@
+---
+- name: Check Ubuntu Version
+  command: lsb_release -a
+  register: ubuntu_version
+  changed_when: false
+
+- name: Update Ubuntu Packages
+  apt:
+    upgrade: dist
+    update_cache: yes
+  become: yes
+  tags: ubuntu
+
+- name: Set Docker variable (default to false)
+  set_fact:
+    docker_installed: false
+  tags: docker-install
+
+- name: Check if Docker is installed
+  command: docker --version
+  register: docker_check
+  ignore_errors: true
+  changed_when: false
+  tags: docker-install
+
+- name: Update Docker variable based on check
+  set_fact:
+    docker_installed: true
+  when: docker_check.rc == 0
+  tags: docker-install
+
+- name: Install Docker if not installed
+  apt:
+    name: docker.io
+    state: present
+  become: yes
+  when: not docker_installed
+  tags: docker-install
+
+- name: Update Docker
+  command: sudo apt update && sudo apt upgrade docker.io
+  become: yes
+  tags: docker-update
+
+- name: Install Docker CE, CLI, containerd, Buildx and Compose
+  apt:
+    name:
+      - docker-ce
+      - docker-ce-cli
+      - containerd.io
+      - docker-compose-plugin
+      - docker-buildx-plugin
+    state: present
+  become: yes
+  tags: docker-install
+
+- name: Check if Ollama is installed
+  command: ollama --version
+  register: ollama_check
+  ignore_errors: true
+
+- name: Install Ollama if not installed
+  shell: |
+    curl -fsSL https://ollama.com/install.sh | sh
+  become: yes
+  when: ollama_check.rc != 0
+  tags: ollama-install
+
+- name: Update Ollama
+  shell: |
+    curl -fsSL https://ollama.com/install.sh | sh
+  become: yes
+  when: ollama_check.rc == 0
+  tags: ollama-update
+
+- name: Verify Ollama Installation After Update
+  command: ollama --version
+  register: ollama_version_after
+  changed_when: false
+  tags: ollama-update

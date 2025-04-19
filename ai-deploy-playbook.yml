@@ -1,0 +1,10 @@
+---
+- hosts: all
+  become: true
+  roles:
+    - deploy-services
+
+  vars_prompt:
+    - name: ai_model_name
+      prompt: "Please enter the AI model name:"
+      private: no

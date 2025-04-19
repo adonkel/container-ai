@@ -1,0 +1,5 @@
+---
+- hosts: all
+  become: true # Needed to run package installation and service management
+  roles:
+    - update-services
